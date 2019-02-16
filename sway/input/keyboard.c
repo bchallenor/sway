@@ -144,6 +144,9 @@ static void update_shortcut_state(struct sway_shortcut_state *state,
 static void get_active_binding(const struct sway_shortcut_state *state,
 		list_t *bindings, struct sway_binding **current_binding,
 		uint32_t modifiers, bool release, bool locked, const char *input) {
+
+	sway_log(SWAY_DEBUG, "get_active_binding(modifiers=%d)", modifiers);
+
 	for (int i = 0; i < bindings->length; ++i) {
 		struct sway_binding *binding = bindings->items[i];
 		bool binding_locked = binding->flags & BINDING_LOCKED;
@@ -180,11 +183,12 @@ static void get_active_binding(const struct sway_shortcut_state *state,
 
 		if (*current_binding && *current_binding != binding &&
 				strcmp((*current_binding)->input, binding->input) == 0) {
-			sway_log(SWAY_DEBUG, "encountered duplicate bindings %d and %d",
-					(*current_binding)->order, binding->order);
+			sway_log(SWAY_DEBUG, "encountered duplicate bindings %s and %s",
+					(*current_binding)->command, binding->command);
 		} else if (!*current_binding ||
 				strcmp((*current_binding)->input, "*") == 0) {
 			*current_binding = binding;
+			sway_log(SWAY_DEBUG, "setting current_binding to %s", binding->command);
 
 			if (strcmp((*current_binding)->input, input) == 0) {
 				// If a binding is found for the exact input, quit searching
@@ -349,13 +353,16 @@ static void handle_keyboard_key(struct wl_listener *listener, void *data) {
 	// Identify and execute active pressed binding
 	struct sway_binding *binding = NULL;
 	if (event->state == WLR_KEY_PRESSED) {
+		sway_log(SWAY_DEBUG, "finding binding via state_keycodes");
 		get_active_binding(&keyboard->state_keycodes,
 				config->current_mode->keycode_bindings, &binding,
 				code_modifiers, false, input_inhibited, device_identifier);
+		sway_log(SWAY_DEBUG, "finding binding via state_keysyms_translated");
 		get_active_binding(&keyboard->state_keysyms_translated,
 				config->current_mode->keysym_bindings, &binding,
 				translated_modifiers, false, input_inhibited,
 				device_identifier);
+		sway_log(SWAY_DEBUG, "finding binding via state_keysyms_raw");
 		get_active_binding(&keyboard->state_keysyms_raw,
 				config->current_mode->keysym_bindings, &binding,
 				raw_modifiers, false, input_inhibited, device_identifier);
@@ -425,7 +432,7 @@ static void determine_bar_visibility(uint32_t modifiers) {
 	for (int i = 0; i < config->bars->length; ++i) {
 		struct bar_config *bar = config->bars->items[i];
 		if (strcmp(bar->mode, bar->hidden_state) == 0) { // both are "hide"
-			bool should_be_visible = 
+			bool should_be_visible =
 				bar->modifier != 0 && (~modifiers & bar->modifier) == 0;
 			if (bar->visible_by_modifier != should_be_visible) {
 				bar->visible_by_modifier = should_be_visible;
